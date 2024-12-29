@@ -1,6 +1,3 @@
-Te preparo un README.md completo:
-
-```markdown
 # Sistema de Estadísticas para Servidor Minecraft
 
 Sistema de estadísticas que permite trackear jugadores y equipos en un servidor de Minecraft, incluyendo sistema de puntuación, rankings y gestión de equipos.
