@@ -1,4 +1,7 @@
 package com.tuservidor.teams;
 
-public class TeamRole {
+public enum TeamRole {
+    LEADER,
+    MODERATOR,
+    MEMBER
 }

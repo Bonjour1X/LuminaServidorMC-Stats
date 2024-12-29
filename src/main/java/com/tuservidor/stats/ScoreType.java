@@ -1,4 +1,9 @@
 package com.tuservidor.stats;
 
-public class ScoreType {
+public enum ScoreType {
+    KILL,
+    DEATH,
+    BLOCK_MINED,
+    ACHIEVEMENT,
+    PLAYTIME
 }

@@ -1,0 +1,27 @@
+name: EstadisticasServer
+version: 1.0
+main: com.tuservidor.Main
+api-version: 1.20
+
+commands:
+  stats:
+    description: Ver estadisticas del jugador
+    usage: /stats
+  team:
+    description: Comandos de equipo
+    usage: /team <create|join|leave|delete|info>
+  teammsg:
+    description: Enviar mensaje al equipo
+    usage: /teammsg <mensaje>
+  top:
+    description: Ver rankings
+    usage: /top <players|teams>
+  help:
+    description: Ver comandos disponibles
+    usage: /help
+  winner:
+    description: Ver equipo ganador actual
+    usage: /winner
+  guide:
+    description: Ver guía de puntuación
+    usage: /guide
