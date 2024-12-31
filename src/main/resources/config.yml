@@ -1,0 +1,4 @@
+discord:
+  token: "TU_TOKEN_AQUI"
+  channel-id: "ID_DEL_CANAL"
+  update-interval: 300 # segundos

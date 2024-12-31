@@ -17,6 +17,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import com.tuservidor.stats.ScoreType;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 
 import java.sql.Statement;
 
@@ -27,6 +28,7 @@ public class Database {
     public Database(String path) {
         this.path = path;
     }
+
 
     public void connect() {
         try {
@@ -49,13 +51,20 @@ public class Database {
             CREATE TABLE IF NOT EXISTS players (
                 player_id TEXT PRIMARY KEY,
                 player_name TEXT,
-                points INTEGER DEFAULT 0,
+                last_ip TEXT,
+                points REAL DEFAULT 0,
                 kills INTEGER DEFAULT 0,
                 deaths INTEGER DEFAULT 0,
                 playtime INTEGER DEFAULT 0,
-                blocks_mined INTEGER DEFAULT 0
+                blocks_mined INTEGER DEFAULT 0,
+                distance_walked REAL DEFAULT 0,
+                distance_sprinted REAL DEFAULT 0,
+                distance_swum REAL DEFAULT 0,
+                distance_boat REAL DEFAULT 0,
+                distance_horse REAL DEFAULT 0,
+                blocks_placed INTEGER DEFAULT 0
             );
-            """;
+        """;
 
         String teams = """
             CREATE TABLE IF NOT EXISTS teams (
@@ -266,64 +275,6 @@ public class Database {
         return ChatColor.RED + "No estás en ningún equipo";
     }
 
-    public List<Map<String, Object>> getTopPlayers(int limit) {
-        String sql = """
-            SELECT player_name, kills, deaths, playtime, blocks_mined
-            FROM players
-            ORDER BY (kills * 10 + blocks_mined - deaths * 5) DESC
-            LIMIT ?
-            """;
-        List<Map<String, Object>> topPlayers = new ArrayList<>();
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setInt(1, limit);
-            ResultSet rs = pstmt.executeQuery();
-
-            while (rs.next()) {
-                Map<String, Object> player = new HashMap<>();
-                player.put("name", rs.getString("player_name"));
-                player.put("score", rs.getInt("kills") * 10 + rs.getInt("blocks_mined") - rs.getInt("deaths") * 5);
-                player.put("kills", rs.getInt("kills"));
-                topPlayers.add(player);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return topPlayers;
-    }
-
-    public List<Map<String, Object>> getTopTeams(int limit) {
-        String sql = """
-            SELECT t.team_name, 
-                   COUNT(pt.player_id) as members,
-                   SUM(p.kills) as total_kills,
-                   SUM(p.blocks_mined) as total_mined
-            FROM teams t
-            JOIN player_teams pt ON t.team_id = pt.team_id
-            JOIN players p ON pt.player_id = p.player_id
-            GROUP BY t.team_id
-            ORDER BY (SUM(p.kills) * 10 + SUM(p.blocks_mined) - SUM(p.deaths) * 5) DESC
-            LIMIT ?
-            """;
-        List<Map<String, Object>> topTeams = new ArrayList<>();
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setInt(1, limit);
-            ResultSet rs = pstmt.executeQuery();
-
-            while (rs.next()) {
-                Map<String, Object> team = new HashMap<>();
-                team.put("name", rs.getString("team_name"));
-                team.put("members", rs.getInt("members"));
-                team.put("score", rs.getInt("total_kills") * 10 + rs.getInt("total_mined") - rs.getInt("total_kills") * 5);
-                topTeams.add(team);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return topTeams;
-    }
-
     public void addPlayerPoints(String playerId, int points, String reason) {
         String sql = "UPDATE players SET score = score + ? WHERE player_id = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
@@ -404,58 +355,121 @@ public class Database {
         return 0;
     }
 
-    public void updateScore(String playerId, ScoreType type, int amount) {
-        int points = switch (type) {
-            case KILL -> amount * 10;
-            case DEATH -> amount * -5;
-            case BLOCK_MINED -> amount;
-            case ACHIEVEMENT -> amount * 15;
-            case PLAYTIME -> amount;
-        };
+    public void logScore(String playerId, ScoreType type, double amount, double points) {
+        System.out.println(String.format("[EstadisticasServer] Puntos actualizados - Jugador: %s, Tipo: %s, Cantidad: %.2f, Puntos: %.2f",
+                playerId, type, amount, points));
+    }
 
+    public void updateScore(String playerId, ScoreType type, double amount) {
+        double points = amount * type.getWeight();
         String sql = """
-            UPDATE players 
-            SET points = points + ?,
-                kills = CASE WHEN ? = 'KILL' THEN kills + ? ELSE kills END,
-                deaths = CASE WHEN ? = 'DEATH' THEN deaths + ? ELSE deaths END,
-                blocks_mined = CASE WHEN ? = 'BLOCK_MINED' THEN blocks_mined + ? ELSE blocks_mined END
-            WHERE player_id = ?
-            """;
+        UPDATE players 
+        SET points = ROUND(points + ?, 2),
+            %s = ROUND(COALESCE(%s, 0) + ?, 2)
+        WHERE player_id = ?
+        """.formatted(type.name().toLowerCase(), type.name().toLowerCase());
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setInt(1, points);
-            pstmt.setString(2, type.name());
-            pstmt.setInt(3, amount);
-            pstmt.setString(4, type.name());
-            pstmt.setInt(5, amount);
-            pstmt.setString(6, type.name());
-            pstmt.setInt(7, amount);
-            pstmt.setString(8, playerId);
+            pstmt.setDouble(1, points);
+            pstmt.setDouble(2, amount);
+            pstmt.setString(3, playerId);
             pstmt.executeUpdate();
 
-            // Actualizar puntuación del equipo y notificar
-            updateTeamScore(playerId, points);
-
-            // Notificar al jugador
-            Player player = Bukkit.getPlayer(UUID.fromString(playerId));
-            if (player != null) {
-                player.sendMessage(ChatColor.GREEN + "+" + points + " puntos (" + type + ")");
-            }
+            // Log después de la actualización exitosa
+            logScore(playerId, type, amount, points);
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
-    // Modificar el método updateTeamScore para que sume todos los tipos de puntos
-    private void updateTeamScore(String playerId, int points) {
+    public List<Map<String, Object>> getTopPlayers(int limit) {
+        List<Map<String, Object>> results = new ArrayList<>();
         String sql = """
-            UPDATE teams 
-            SET score = score + ? 
-            WHERE team_id IN (SELECT team_id FROM player_teams WHERE player_id = ?)
-            """;
+        SELECT player_name as name, ROUND(points, 2) as score, kills
+        FROM players 
+        ORDER BY points DESC 
+        LIMIT ?
+        """;
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setInt(1, points);
+            pstmt.setInt(1, limit);
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                Map<String, Object> player = new HashMap<>();
+                player.put("name", rs.getString("name"));
+                player.put("score", rs.getDouble("score"));
+                player.put("kills", rs.getInt("kills"));
+                results.add(player);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return results;
+    }
+
+    public List<Map<String, Object>> getTopTeams(int limit) {
+        List<Map<String, Object>> results = new ArrayList<>();
+        String sql = """
+        SELECT t.team_name as name, ROUND(t.score, 2) as score,
+               (SELECT COUNT(*) FROM player_teams WHERE team_id = t.team_id) as members
+        FROM teams t
+        ORDER BY t.score DESC 
+        LIMIT ?
+        """;
+
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setInt(1, limit);
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                Map<String, Object> team = new HashMap<>();
+                team.put("name", rs.getString("name"));
+                team.put("score", rs.getDouble("score"));
+                team.put("members", rs.getInt("members"));
+                results.add(team);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return results;
+    }
+
+
+    private String getColumnName(ScoreType type) {
+        return switch (type) {
+            case KILL -> "kills";
+            case DEATH -> "deaths";
+            case BLOCK_MINED -> "blocks_mined";
+            case DISTANCE_WALKED -> "distance_walked";
+            case DISTANCE_SPRINTED -> "distance_sprinted";
+            case DISTANCE_SWUM -> "distance_swum";
+            case DISTANCE_BOAT -> "distance_boat";
+            case DISTANCE_HORSE -> "distance_horse";
+            case RAIDS_WON -> "raids_won";
+            case DAMAGE_DEALT -> "damage_dealt";
+            case VILLAGER_TRADES -> "villager_trades";
+            case ITEMS_ENCHANTED -> "items_enchanted";
+            case BLOCKS_PLACED -> "blocks_placed";
+            case WEAPONS_CRAFTED -> "weapons_crafted";
+            case TOOLS_CRAFTED -> "tools_crafted";
+            case HOSTILE_KILLS -> "hostile_kills";
+            case ANIMALS_BRED -> "animals_bred";
+            case PLAYTIME -> "playtime";
+            default -> type.name().toLowerCase();
+        };
+    }
+
+    // Modificar el método updateTeamScore para que sume todos los tipos de puntos
+    private void updateTeamScore(String playerId, double points) {
+        String sql = """
+        UPDATE teams 
+        SET score = score + ? 
+        WHERE team_id IN (SELECT team_id FROM player_teams WHERE player_id = ?)
+        """;
+
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setDouble(1, points);
             pstmt.setString(2, playerId);
             pstmt.executeUpdate();
         } catch (SQLException e) {
@@ -626,4 +640,89 @@ public class Database {
             e.printStackTrace();
         }
     }
+
+    public String getPlayerStats(String playerName, boolean isAdmin) {
+        StringBuilder sb = new StringBuilder();
+        String sql = "SELECT * FROM players WHERE player_name = ?";
+
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, playerName);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                sb.append("📊 **Estadísticas de ").append(playerName).append("**\n")
+                        .append("Puntos: ").append(rs.getInt("points")).append("\n")
+                        .append("Kills: ").append(rs.getInt("kills")).append("\n")
+                        .append("Muertes: ").append(rs.getInt("deaths")).append("\n")
+                        .append("Bloques minados: ").append(rs.getInt("blocks_mined")).append("\n")
+                        .append("Tiempo jugado: ").append(rs.getInt("playtime")).append(" minutos\n")
+                        .append("Distancia caminada: ").append(String.format("%.2f", rs.getDouble("distance_walked"))).append(" bloques\n")
+                        .append("Distancia corriendo: ").append(String.format("%.2f", rs.getDouble("distance_sprinted"))).append(" bloques\n")
+                        .append("Distancia nadando: ").append(String.format("%.2f", rs.getDouble("distance_swum"))).append(" bloques\n")
+                        .append("Distancia en bote: ").append(String.format("%.2f", rs.getDouble("distance_boat"))).append(" bloques\n")
+                        .append("Distancia a caballo: ").append(String.format("%.2f", rs.getDouble("distance_horse"))).append(" bloques\n")
+                        .append("Saltos: ").append(rs.getInt("jumps")).append("\n")
+                        .append("Invasiones ganadas: ").append(rs.getInt("raids_won")).append("\n")
+                        .append("Daño causado: ").append(String.format("%.1f", rs.getDouble("damage_dealt"))).append("\n")
+                        .append("Daño recibido: ").append(String.format("%.1f", rs.getDouble("damage_taken"))).append("\n")
+                        .append("Comercios con aldeanos: ").append(rs.getInt("villager_trades")).append("\n")
+                        .append("Objetos encantados: ").append(rs.getInt("items_enchanted")).append("\n")
+                        .append("Usos de mesa de crafteo: ").append(rs.getInt("crafting_used")).append("\n")
+                        .append("Bloques colocados: ").append(rs.getInt("blocks_placed")).append("\n")
+                        .append("Armas crafteadas: ").append(rs.getInt("weapons_crafted")).append("\n")
+                        .append("Herramientas crafteadas: ").append(rs.getInt("tools_crafted")).append("\n")
+                        .append("Comida consumida: ").append(rs.getInt("food_eaten")).append("\n")
+                        .append("Pociones usadas: ").append(rs.getInt("potions_used")).append("\n")
+                        .append("Mobs hostiles eliminados: ").append(rs.getInt("hostile_kills")).append("\n")
+                        .append("Entidades montadas: ").append(rs.getInt("entities_mounted")).append("\n")
+                        .append("Bloques cherry usados: ").append(rs.getInt("cherry_blocks_used")).append("\n")
+                        .append("Distancia con armadura trimmed: ").append(String.format("%.2f", rs.getDouble("trimmed_armor_distance"))).append(" bloques\n");
+
+                // Solo mostrar IP si el que consulta es admin
+                if (isAdmin) {
+                    sb.append("\n🔒 **Info Admin**\n")
+                            .append("IP: ").append(rs.getString("last_ip")).append("\n");
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return sb.toString();
+    }
+
+    public int getPointsGainedLastMinute(String playerId) {
+        String sql = "SELECT points FROM players WHERE player_id = ?";
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, playerId);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("points");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    public void updatePlayerIP(String playerId, String ip) {
+        String sql = """
+        UPDATE players 
+        SET last_ip = ? 
+        WHERE player_id = ?
+        """;
+
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, ip);
+            pstmt.setString(2, playerId);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+
+
+
 }

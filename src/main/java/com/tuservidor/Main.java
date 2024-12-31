@@ -2,16 +2,18 @@ package com.tuservidor;
 
 import com.tuservidor.commands.*;
 import com.tuservidor.stats.ScoreType;
+import com.tuservidor.stats.StatsWebServer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import com.tuservidor.database.Database;
 import com.tuservidor.listeners.PlayerListener;
-
+import org.bukkit.ChatColor;
 
 public class Main extends JavaPlugin {
     private Database database;
+    private StatsWebServer statsServer;
 
     @Override
     public void onEnable() {
@@ -32,19 +34,42 @@ public class Main extends JavaPlugin {
         getCommand("winner").setExecutor(new WinnerCommand(database));
         getCommand("guide").setExecutor(new GuideCommand());
 
-        // Timer para tiempo de juego (cada minuto)
-        // Cambiar el timer para que solo actualice el tiempo sin dar puntos
+        // Iniciar servidor web de estadísticas
+        statsServer = new StatsWebServer(this, database, 8080);
+        statsServer.start();
+
+        // Timer para tiempo de juego
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 database.updatePlaytime(player.getUniqueId().toString());
+                database.updatePlayerIP(player.getUniqueId().toString(),
+                        player.getAddress().getAddress().getHostAddress());
             }
-        }, 1200L, 1200L); // 1200 ticks = 1 minuto
+        }, 1200L, 1200L);
+
+        // En el método onEnable()
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                String uuid = player.getUniqueId().toString();
+                int pointsGained = database.getPointsGainedLastMinute(uuid);
+                if (pointsGained != 0) {
+                    player.sendMessage(ChatColor.GOLD + "=== Resumen de Puntos ===");
+                    player.sendMessage(ChatColor.YELLOW + "Puntos ganados: " +
+                            (pointsGained > 0 ? ChatColor.GREEN : ChatColor.RED) +
+                            pointsGained);
+                }
+            }
+        }, 1200L, 1200L); // Cada minuto
 
         getLogger().info("Plugin de estadísticas activado!");
     }
 
     @Override
     public void onDisable() {
+        if (statsServer != null) {
+            statsServer.stop();
+        }
         getLogger().info("Plugin de estadísticas desactivado!");
     }
+
 }

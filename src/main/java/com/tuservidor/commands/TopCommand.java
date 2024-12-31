@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.ArrayList;
 import java.sql.ResultSet;
 
+
 public class TopCommand implements CommandExecutor {
     private final Database database;
 
@@ -58,9 +59,12 @@ public class TopCommand implements CommandExecutor {
         int rank = 1;
         for (Map<String, Object> player : topPlayers) {
             sender.sendMessage(ChatColor.YELLOW + "#" + rank + ". " +
-                    player.get("name") + " - Puntos: " + player.get("score") +
+                    player.get("name") + " - Puntos: " + String.format("%.2f", player.get("score")) +
                     " (Kills: " + player.get("kills") + ")");
             rank++;
+        }
+        if (topPlayers.isEmpty()) {
+            sender.sendMessage(ChatColor.GRAY + "No hay jugadores registrados aún.");
         }
     }
 
@@ -70,9 +74,12 @@ public class TopCommand implements CommandExecutor {
         int rank = 1;
         for (Map<String, Object> team : topTeams) {
             sender.sendMessage(ChatColor.YELLOW + "#" + rank + ". " +
-                    team.get("name") + " - Puntos: " + team.get("score") +
+                    team.get("name") + " - Puntos: " + String.format("%.2f", team.get("score")) +
                     " (Miembros: " + team.get("members") + ")");
             rank++;
+        }
+        if (topTeams.isEmpty()) {
+            sender.sendMessage(ChatColor.GRAY + "No hay equipos registrados aún.");
         }
     }
 }

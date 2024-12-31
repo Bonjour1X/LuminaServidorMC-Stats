@@ -8,17 +8,27 @@ import org.bukkit.command.CommandSender;
 public class GuideCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        sender.sendMessage(ChatColor.GOLD + "=== Guía de Puntuación ===");
-        sender.sendMessage(ChatColor.YELLOW + "• Kills (mobs/jugadores): +10 puntos");
-        sender.sendMessage(ChatColor.YELLOW + "• Muertes: -5 puntos");
-        sender.sendMessage(ChatColor.YELLOW + "• Bloques minados: +1 punto (necesitas pico/hacha)");
-        sender.sendMessage(ChatColor.YELLOW + "• Logros: +15 puntos");
-        sender.sendMessage(ChatColor.YELLOW + "• Tiempo jugado: +1 punto/minuto");
-        sender.sendMessage(ChatColor.GOLD + "=== Logros que dan puntos ===");
-        sender.sendMessage(ChatColor.YELLOW + "• Obtener materiales");
-        sender.sendMessage(ChatColor.YELLOW + "• Craftear herramientas");
-        sender.sendMessage(ChatColor.YELLOW + "• Matar mobs");
-        sender.sendMessage(ChatColor.YELLOW + "• Explorar biomas");
+        sender.sendMessage(ChatColor.GOLD + "=== Sistema de Puntuación ===");
+        sender.sendMessage(ChatColor.YELLOW + "Combate:");
+        sender.sendMessage(ChatColor.WHITE + "• Kill PvP: +10 puntos");
+        sender.sendMessage(ChatColor.WHITE + "• Muerte: -5 puntos");
+        sender.sendMessage(ChatColor.WHITE + "• Mob hostil: +5 puntos");
+
+        sender.sendMessage(ChatColor.YELLOW + "\nRecursos:");
+        sender.sendMessage(ChatColor.WHITE + "• Bloque minado: +1 punto");
+        sender.sendMessage(ChatColor.WHITE + "• Bloque colocado: +0.5 puntos");
+        sender.sendMessage(ChatColor.WHITE + "• Item encantado: +5 puntos");
+
+        sender.sendMessage(ChatColor.YELLOW + "\nActividades:");
+        sender.sendMessage(ChatColor.WHITE + "• Raid ganada: +15 puntos");
+        sender.sendMessage(ChatColor.WHITE + "• Comercio aldeano: +2 puntos");
+        sender.sendMessage(ChatColor.WHITE + "• Animal criado: +3 puntos");
+
+        sender.sendMessage(ChatColor.YELLOW + "\nMovimiento:");
+        sender.sendMessage(ChatColor.WHITE + "• Correr: +0.02 por bloque");
+        sender.sendMessage(ChatColor.WHITE + "• Nadar: +0.03 por bloque");
+        sender.sendMessage(ChatColor.WHITE + "• Montar: +0.02-0.03 por bloque");
+
         return true;
     }
 }
