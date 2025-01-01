@@ -87,10 +87,23 @@ public class PlayerListener implements Listener {
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
         Block block = event.getBlock();
+        ItemStack tool = player.getInventory().getItemInMainHand();
 
-        if (isValidTool(player.getInventory().getItemInMainHand(), block)) {
-            database.updateScore(player.getUniqueId().toString(), ScoreType.BLOCK_MINED, 1);
+        // Solo dar puntos si usa herramienta
+        if (tool != null && isValidTool(tool, block)) {
+            String playerId = player.getUniqueId().toString();
+            database.updateScore(playerId, ScoreType.BLOCK_MINED, 1);
+            System.out.println("[DEBUG] Puntos por minar: jugador=" + player.getName() + ", bloque=" + block.getType());
         }
+    }
+
+    private boolean isValidTool(ItemStack tool, Block block) {
+        if (tool == null || !tool.getType().name().endsWith("PICKAXE")) {
+            return false;
+        }
+        return block.getType() == Material.STONE ||
+                block.getType() == Material.DIRT ||
+                block.getType().name().contains("ORE");
     }
 
     @EventHandler
@@ -183,16 +196,6 @@ public class PlayerListener implements Listener {
         if (event.getCurrentItem() != null) {
             database.updateScore(player.getUniqueId().toString(), ScoreType.VILLAGER_TRADES, 1);
         }
-    }
-
-
-    private boolean isValidTool(ItemStack tool, Block block) {
-        Material toolType = tool.getType();
-        Material blockType = block.getType();
-
-        return (toolType.name().contains("PICKAXE") && blockType.name().contains("STONE")) ||
-                (toolType.name().contains("AXE") && blockType.name().contains("LOG")) ||
-                (toolType.name().contains("SHOVEL") && blockType == Material.DIRT);
     }
 
     private boolean isValuableBlock(Material block) {

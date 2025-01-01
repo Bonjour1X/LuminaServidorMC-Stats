@@ -361,22 +361,19 @@ public class Database {
     }
 
     public void updateScore(String playerId, ScoreType type, double amount) {
-        double points = amount * type.getWeight();
-        String sql = """
-        UPDATE players 
-        SET points = ROUND(points + ?, 2),
-            %s = ROUND(COALESCE(%s, 0) + ?, 2)
-        WHERE player_id = ?
-        """.formatted(type.name().toLowerCase(), type.name().toLowerCase());
+        // Para debugging
+        System.out.println("[DEBUG] Actualizando puntos: tipo=" + type + ", cantidad=" + amount);
 
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setDouble(1, points);
-            pstmt.setDouble(2, amount);
-            pstmt.setString(3, playerId);
-            pstmt.executeUpdate();
-
-            // Log después de la actualización exitosa
-            logScore(playerId, type, amount, points);
+        try {
+            String sql = "UPDATE players SET blocks_mined = blocks_mined + ?, points = points + ? WHERE player_id = ?";
+            try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+                double points = amount * type.getWeight();
+                pstmt.setDouble(1, amount);
+                pstmt.setDouble(2, points);
+                pstmt.setString(3, playerId);
+                pstmt.executeUpdate();
+                System.out.println("[DEBUG] Puntos actualizados: jugador=" + playerId + ", puntos=" + points);
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }
